@@ -80,11 +80,11 @@ def login():
         return "already logged in"
     else:
         # return redirect("https://www.strava.com/oauth/authorize?client_id="+str(clientId)+"&response_type=code&redirect_uri=http://localhost:5000/authorized&scope=write&state=mystate&approval_prompt=force")
-        return "https://www.strava.com/oauth/authorize?client_id="+str(clientId)+"&response_type=code&redirect_uri=http://localhost:5000/authorized&scope=write&state=mystate&approval_prompt=force"
+        return "https://www.strava.com/oauth/authorize?client_id="+str(clientId)+"&response_type=code&redirect_uri=http://localhost&scope=write&state=mystate&approval_prompt=force"
 @app.route('/register')
 def register():
     # return redirect("https://www.strava.com/oauth/authorize?client_id=" + str(clientId) + "&response_type=code&redirect_uri=http://localhost:5000/authorized&scope=write&state=mystate&approval_prompt=force")
-    return "https://www.strava.com/oauth/authorize?client_id=" + str(clientId) + "&response_type=code&redirect_uri=http://localhost:5000/authorized&scope=write&state=mystate&approval_prompt=force"
+    return "https://www.strava.com/oauth/authorize?client_id=" + str(clientId) + "&response_type=code&redirect_uri=http://localhost&scope=write&state=mystate&approval_prompt=force"
     # return "test"
 
 
