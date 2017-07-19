@@ -1,4 +1,5 @@
 #!flask/bin/python
+import os
 from flask import Flask, jsonify, request, redirect, json,make_response,url_for
 from stravalib.client import Client
 from flaskext.mysql import MySQL
@@ -7,9 +8,16 @@ import time
 import sys
 
 mysql = MySQL()
+# app = Flask(__name__)
+# app.config['MYSQL_DATABASE_USER'] = 'root'
+# app.config['MYSQL_DATABASE_PASSWORD'] = 'root'
+# app.config['MYSQL_DATABASE_DB'] = 'centerparks'
+# app.config['MYSQL_DATABASE_HOST'] = '127.0.0.1'
+# mysql.init_app(app)
+
 app = Flask(__name__)
-app.config['MYSQL_DATABASE_USER'] = 'root'
-app.config['MYSQL_DATABASE_PASSWORD'] = 'root'
+app.config['MYSQL_DATABASE_USER'] = 'jonasvr'
+app.config['MYSQL_DATABASE_PASSWORD'] = ''
 app.config['MYSQL_DATABASE_DB'] = 'centerparks'
 app.config['MYSQL_DATABASE_HOST'] = '127.0.0.1'
 mysql.init_app(app)
@@ -51,14 +59,14 @@ def authorized():
         data = dbCall(selectQuery)
         user_id = data[0][0]
         for count in range(1, 4):
-            print(count, file=sys.stderr)
+            # print(count, file=sys.stderr)
             query = "INSERT INTO `centerparks`.`stats` (`user_id`,`segment_id`,`distance`,`time`,`updated`) VALUES ('{}','{}','{}','{}','{}');"
             qr = query.format(user_id, count,'0','0','0')
             data = dbCall(qr)
-            print(data, file=sys.stderr)
+            # print(data, file=sys.stderr)
     else:
         user_id = data[0][0]
-    print(user_id, file=sys.stderr)
+    # print(user_id, file=sys.stderr)
 
     resp = make_response('logged in')
     resp.set_cookie('user_id', str(user_id))
@@ -145,7 +153,7 @@ def sync():
 
 @app.route('/mystats')
 def mystats():
-    print(request.cookies.get('user_id'), file=sys.stderr)
+    # print(request.cookies.get('user_id'), file=sys.stderr)
     user_id = int(request.cookies.get('user_id'))
     token = request.cookies.get('token')
     client.access_token = token
@@ -215,5 +223,9 @@ def dbCall(query):
     data = myJsonfy(cur.fetchall())
     return data
 
+# app.run(host = os.getenv("IP",'0.0.0.0'),port=int(os.getenv("PORT",5000)))
 if __name__ == '__main__':
-    app.run(debug=True)
+    # app.run(host = os.getenv("IP",'0.0.0.0'),port=int(os.getenv("PORT",5000)))
+    # app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port=8080)
+   
