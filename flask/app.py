@@ -67,6 +67,25 @@ def link():
 def getLogin():
     return render_template("login.html")
 
+@app.route('/login', methods=['POST'])
+def postLogin():
+    email = request.form['email']
+    password = request.form['password']
+
+    selectQuery = "Select salt,password,id FROM users where email = '{}'".format(email)
+    data = dbCall(selectQuery)
+    salt = data[0][0]
+    logged_password = data[0][1]
+    db_password = password + salt
+    hashed_password = hashlib.md5(db_password.encode()).hexdigest()
+
+    if hashed_password == logged_password:
+        return "succes"
+    else:
+        return "fail"
+
+    # return render_template("login.html")
+
 @app.route('/register', methods=['GET'])
 def getRegister():
     return render_template("register.html")
