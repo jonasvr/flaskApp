@@ -1,26 +1,27 @@
 #!flask/bin/python
 import os
-from flask import Flask, jsonify, request, redirect, json,make_response,url_for
+from flask import Flask, jsonify, request, redirect, json,make_response,url_for,render_template
 from stravalib.client import Client
 from flaskext.mysql import MySQL
+import hashlib, uuid
 import time
 # from flask_mysqldb import MySQL
 import sys
 
 mysql = MySQL()
-# app = Flask(__name__)
-# app.config['MYSQL_DATABASE_USER'] = 'root'
-# app.config['MYSQL_DATABASE_PASSWORD'] = 'root'
-# app.config['MYSQL_DATABASE_DB'] = 'centerparks'
-# app.config['MYSQL_DATABASE_HOST'] = '127.0.0.1'
-# mysql.init_app(app)
-
 app = Flask(__name__)
-app.config['MYSQL_DATABASE_USER'] = 'jonasvr'
-app.config['MYSQL_DATABASE_PASSWORD'] = ''
+app.config['MYSQL_DATABASE_USER'] = 'root'
+app.config['MYSQL_DATABASE_PASSWORD'] = 'root'
 app.config['MYSQL_DATABASE_DB'] = 'centerparks'
 app.config['MYSQL_DATABASE_HOST'] = '127.0.0.1'
 mysql.init_app(app)
+
+# app = Flask(__name__)
+# app.config['MYSQL_DATABASE_USER'] = 'jonasvr'
+# app.config['MYSQL_DATABASE_PASSWORD'] = ''
+# app.config['MYSQL_DATABASE_DB'] = 'centerparks'
+# app.config['MYSQL_DATABASE_HOST'] = '127.0.0.1'
+# mysql.init_app(app)
 
 clientId = 19003
 client = Client()
@@ -31,7 +32,6 @@ def index():
     cur = mysql.get_db().cursor()
     cur.execute("SELECT * FROM users")
     rv = myJsonfy(cur.fetchall())
-    # user = request.cookies.get('user_id')
     return str(rv)
 
 @app.route('/authorized', methods=['GET'])
@@ -41,51 +41,68 @@ def authorized():
     access_token = client.exchange_code_for_token(client_id=clientId, client_secret='49dc3ee13e6ec7b605a23839ac92e2d94253dcaf', code=code)
     client.access_token = access_token
     athlete = client.get_athlete()
-    user = athlete.firstname+ " " +athlete.lastname
     app_id = athlete.id
 
-    #mysql -> searching user
-    selectQuery = "Select id  FROM users where app_id = {}".format(app_id)
-    data = dbCall(selectQuery)
-
-    # print(data[0][0], file=sys.stderr)
-
+    user_id = int(request.cookies.get('user_id'))
+    query = "UPDATE `centerparks`.`users` SET accesstoken = '{}', park_id = {}, app_id = {} WHERE id = {};"
+    qr = query.format(access_token, 1, app_id, user_id)
+    print(qr)
+    dbCall(qr)
     # creating user if not exist
-    if(len(data) == 0):
 
-        query = "INSERT INTO `centerparks`.`users` (`name`,`accesstoken`,`park_id`,`app_id`) VALUES ('{}','{}',{},{});"
-        qr = query.format(user, access_token, 1, app_id)
+    resp = make_response('linked')
+    resp.set_cookie('user_id', str(user_id))
+    resp.set_cookie('token', access_token)
+    return resp
+
+
+@app.route('/link', methods=['GET'])
+def link():
+    if 'token' in request.cookies:
+        return "already logged in"
+    else:
+        return redirect("https://www.strava.com/oauth/authorize?client_id="+str(clientId)+"&response_type=code&redirect_uri=http://localhost:5000/authorized&scope=write&state=mystate&approval_prompt=force")
+
+@app.route('/login', methods=['GET'])
+def getLogin():
+    return render_template("login.html")
+
+@app.route('/register', methods=['GET'])
+def getRegister():
+    return render_template("register.html")
+
+@app.route('/register', methods=['POST'])
+def postRegister():
+    name = request.form['name']
+    email = request.form['email']
+    password = request.form['password']
+
+    salt = uuid.uuid4().hex
+    db_password = password + salt
+    hashed_password = hashlib.md5(db_password.encode()).hexdigest()
+
+    selectQuery = "Select id  FROM users where email = '{}'".format(email)
+    data = dbCall(selectQuery)
+    if (len(data) == 0):
+        query = "INSERT INTO `centerparks`.`users` (name,email,password,salt) VALUES ('{}','{}','{}','{}');"
+        qr = query.format(name, email, hashed_password,salt)
         dbCall(qr)
         data = dbCall(selectQuery)
         user_id = data[0][0]
         for count in range(1, 4):
             # print(count, file=sys.stderr)
             query = "INSERT INTO `centerparks`.`stats` (`user_id`,`segment_id`,`distance`,`time`,`updated`) VALUES ('{}','{}','{}','{}','{}');"
-            qr = query.format(user_id, count,'0','0','0')
+            qr = query.format(user_id, count, '0', '0', '0')
             data = dbCall(qr)
             # print(data, file=sys.stderr)
     else:
         user_id = data[0][0]
-    # print(user_id, file=sys.stderr)
+    print(user_id, file=sys.stderr)
 
-    resp = make_response('logged in')
+    resp = make_response(redirect(url_for("link")))
     resp.set_cookie('user_id', str(user_id))
-    resp.set_cookie('token', access_token)
+
     return resp
-
-
-@app.route('/login', methods=['GET'])
-def login():
-    if 'token' in request.cookies:
-        return "already logged in"
-    else:
-        # return redirect("https://www.strava.com/oauth/authorize?client_id="+str(clientId)+"&response_type=code&redirect_uri=http://localhost:5000/authorized&scope=write&state=mystate&approval_prompt=force")
-        return "https://www.strava.com/oauth/authorize?client_id="+str(clientId)+"&response_type=code&redirect_uri=http://localhost&scope=write&state=mystate&approval_prompt=force"
-@app.route('/register')
-def register():
-    # return redirect("https://www.strava.com/oauth/authorize?client_id=" + str(clientId) + "&response_type=code&redirect_uri=http://localhost:5000/authorized&scope=write&state=mystate&approval_prompt=force")
-    return "https://www.strava.com/oauth/authorize?client_id=" + str(clientId) + "&response_type=code&redirect_uri=http://localhost&scope=write&state=mystate&approval_prompt=force"
-    # return "test"
 
 
 @app.route('/logout')
@@ -119,10 +136,11 @@ def sync():
     Swim = []
     distanceSwam = 0
     newDate = 0
-    if oldData[0][2] == 0:
+    after = oldData[0][2]
+    if after == 0:
         activities = client.get_activities()
     else:
-        activities = client.get_activities(after="2017-02-09 19:04:15+00:00")
+        activities = client.get_activities(after="2017-02-09 19:04:15+00:00") #after
 
     for activity in activities:
         if "{0.type}".format(activity) == "Run":
@@ -223,9 +241,13 @@ def dbCall(query):
     data = myJsonfy(cur.fetchall())
     return data
 
+
+def test():
+    return "test"
+
 # app.run(host = os.getenv("IP",'0.0.0.0'),port=int(os.getenv("PORT",5000)))
 if __name__ == '__main__':
     # app.run(host = os.getenv("IP",'0.0.0.0'),port=int(os.getenv("PORT",5000)))
-    # app.run(debug=True)
-    app.run(debug=True, host='0.0.0.0', port=8080)
+    app.run(debug=True)
+    # app.run(debug=True, host='0.0.0.0', port=8080)
    

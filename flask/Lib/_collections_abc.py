@@ -45,7 +45,7 @@ set_iterator = type(iter(set()))
 str_iterator = type(iter(""))
 tuple_iterator = type(iter(()))
 zip_iterator = type(iter(zip()))
-## views ##
+## templates ##
 dict_keys = type({}.keys())
 dict_values = type({}.values())
 dict_items = type({}.items())
