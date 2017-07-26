@@ -9,19 +9,19 @@ import time
 import sys
 
 mysql = MySQL()
-app = Flask(__name__)
-app.config['MYSQL_DATABASE_USER'] = 'root'
-app.config['MYSQL_DATABASE_PASSWORD'] = 'root'
-app.config['MYSQL_DATABASE_DB'] = 'centerparks'
-app.config['MYSQL_DATABASE_HOST'] = '127.0.0.1'
-mysql.init_app(app)
-
 # app = Flask(__name__)
-# app.config['MYSQL_DATABASE_USER'] = 'jonasvr'
-# app.config['MYSQL_DATABASE_PASSWORD'] = ''
+# app.config['MYSQL_DATABASE_USER'] = 'root'
+# app.config['MYSQL_DATABASE_PASSWORD'] = 'root'
 # app.config['MYSQL_DATABASE_DB'] = 'centerparks'
 # app.config['MYSQL_DATABASE_HOST'] = '127.0.0.1'
 # mysql.init_app(app)
+
+app = Flask(__name__)
+app.config['MYSQL_DATABASE_USER'] = 'jonasvr'
+app.config['MYSQL_DATABASE_PASSWORD'] = ''
+app.config['MYSQL_DATABASE_DB'] = 'centerparks'
+app.config['MYSQL_DATABASE_HOST'] = '127.0.0.1'
+mysql.init_app(app)
 
 clientId = 19003
 client = Client()
@@ -72,17 +72,21 @@ def postLogin():
     email = request.form['email']
     password = request.form['password']
 
-    selectQuery = "Select salt,password,id FROM users where email = '{}'".format(email)
+    selectQuery = "Select salt,password,accesstoken FROM users where email = '{}'".format(email)
     data = dbCall(selectQuery)
-    salt = data[0][0]
-    logged_password = data[0][1]
-    db_password = password + salt
-    hashed_password = hashlib.md5(db_password.encode()).hexdigest()
-
-    if hashed_password == logged_password:
-        return "succes"
+    if (len(data) != 0):
+        salt = data[0][0]
+        logged_password = data[0][1]
+        accesstoken = data[0][2]
+        db_password = password + salt
+        hashed_password = hashlib.md5(db_password.encode()).hexdigest()
+    
+        if hashed_password == logged_password:
+            return jsonify(accesstoken=accesstoken,message="success")
+        else:
+            return jsonify(message="fail: email or password is incorrect")
     else:
-        return "fail"
+        return jsonify(message="fail: email or password is incorrect")
 
     # return render_template("login.html")
 
@@ -266,7 +270,7 @@ def test():
 
 # app.run(host = os.getenv("IP",'0.0.0.0'),port=int(os.getenv("PORT",5000)))
 if __name__ == '__main__':
-    # app.run(host = os.getenv("IP",'0.0.0.0'),port=int(os.getenv("PORT",5000)))
-    app.run(debug=True)
+    app.run(host = os.getenv("IP",'0.0.0.0'),port=int(os.getenv("PORT",5000)))
+    # app.run(debug=True)
     # app.run(debug=True, host='0.0.0.0', port=8080)
    
