@@ -72,17 +72,18 @@ def postLogin():
     email = request.form['email']
     password = request.form['password']
 
-    selectQuery = "Select salt,password,accesstoken FROM users where email = '{}'".format(email)
+    selectQuery = "Select salt,password,accesstoken,id FROM users where email = '{}'".format(email)
     data = dbCall(selectQuery)
     if (len(data) != 0):
         salt = data[0][0]
         logged_password = data[0][1]
         accesstoken = data[0][2]
+        user_id = data[0][3]
         db_password = password + salt
         hashed_password = hashlib.md5(db_password.encode()).hexdigest()
     
         if hashed_password == logged_password:
-            return jsonify(accesstoken=accesstoken,message="success")
+            return jsonify(accesstoken=accesstoken,user_id = user_id,message="success")
         else:
             return jsonify(message="fail: email or password is incorrect")
     else:
@@ -113,7 +114,7 @@ def postRegister():
         data = dbCall(selectQuery)
         user_id = data[0][0]
         for count in range(1, 4):
-            # print(count, file=sys.stderr)
+            print(count, file=sys.stderr)
             query = "INSERT INTO `centerparks`.`stats` (`user_id`,`segment_id`,`distance`,`time`,`updated`) VALUES ('{}','{}','{}','{}','{}');"
             qr = query.format(user_id, count, '0', '0', '0')
             data = dbCall(qr)
@@ -144,15 +145,15 @@ def logout():
 #     athlete = client.get_athlete()
 #     return athlete.lastname
 
-@app.route('/sync')
+@app.route('/sync', methods=['POST'])
 def sync():
-    user_id= int(request.cookies.get('user_id'))
-    token =  request.cookies.get('token')
+    user_id= request.form['user_id']
+    token =  request.form['token']
     client.access_token = token
 
     selectQuery = "Select time, distance, updated FROM stats where user_id = {}".format(user_id)
     oldData = dbCall(selectQuery)
-    print("user_id = {}".format(user_id))
+    print(oldData)
 
     Run = []
     distanceRan = 0
@@ -163,56 +164,59 @@ def sync():
     if after == 0:
         activities = client.get_activities()
     else:
-        activities = client.get_activities(after="2017-02-09 19:04:15+00:00") #after
-
+        activities = client.get_activities(after=after) #after
+    counter = 0
     for activity in activities:
         if "{0.type}".format(activity) == "Run":
             Run.append("{0.moving_time}".format(activity))
             distance = float(("{0.distance}".format(activity)).split(' ')[0])
             distanceRan = distanceRan + distance
+            
         elif "{0.type}".format(activity) == "Swim":
             Swim.append("{0.moving_time}".format(activity))
             distance = float(("{0.distance}".format(activity)).split(' ')[0])
             distanceSwam = distanceSwam + distance
         newDate = "{0.start_date}".format(activity)
+        counter = counter + 1
+    
+    if counter:
+        totalRunTime = calcTotalTime(Run) + int(oldData[0][0])
+        distanceRan = float(distanceRan/1000 + float(oldData[0][1]))
+    
+        totalSwimTime = calcTotalTime(Swim) + int(oldData[1][0])
+        distanceSwam = float(distanceSwam/1000 + float(oldData[1][1]))
+    
+        
+        selectQuery = "UPDATE stats SET time = {},distance = {},updated = '{}' WHERE user_id = {} and segment_id = {};".format(totalRunTime, distanceRan, newDate, user_id,1)
+        print("query"+selectQuery)
+        data = dbCall(selectQuery)
+        selectQuery = "UPDATE stats SET time = {},distance = {},updated = '{}' WHERE user_id = {} and segment_id = {};".format(totalSwimTime,distanceSwam, newDate, user_id, 2)
+        data = dbCall(selectQuery)
+        return jsonify(data=data,message="success")
+    else:
+        return jsonify(data=0,message="nothing to sync")
 
-    totalRunTime = calcTotalTime(Run) + int(oldData[0][0])
-    distanceRan = (distanceRan + float(oldData[0][1]))/1000
-
-    totalSwimTime = calcTotalTime(Swim) + int(oldData[1][0])
-    distanceSwam = distanceSwam + float(oldData[1][1])/1000
-
-    print("date = {}".format(newDate))
-
-    selectQuery = "UPDATE stats SET time = {},distance = {},updated = '{}' WHERE user_id = {} and segment_id = {};".format(totalRunTime, distanceRan, newDate, user_id,1)
-    data = dbCall(selectQuery)
-    selectQuery = "UPDATE stats SET time = {},distance = {},updated = '{}' WHERE user_id = {} and segment_id = {};".format(totalSwimTime,distanceSwam, newDate, user_id, 2)
-    data = dbCall(selectQuery)
-
-    return redirect(url_for('mystats'))
-
-
-@app.route('/mystats')
+@app.route('/mystats', methods=['POST'])
 def mystats():
-    # print(request.cookies.get('user_id'), file=sys.stderr)
-    user_id = int(request.cookies.get('user_id'))
-    token = request.cookies.get('token')
+    user_id= request.form['user_id']
+    token =  request.form['token']
     client.access_token = token
 
     selectQuery = "Select time, distance, updated FROM stats where user_id = {}".format(user_id)
     data = dbCall(selectQuery)
-
+    print(data)
     view = {
        "run" : {
             "time" : secToTime(int(data[0][0])),
-            "distance" : data[0][1]
+            "distance" : round(float(data[0][1]), 2)
         },
        "swim": {
-            "time": secToTime(int(data[0][0])),
-            "distance": data[0][1]
+            "time": secToTime(int(data[1][0])),
+            "distance": round(float(data[1][1]), 2)
         }
     }
-    return str(view)
+    # return str(view)
+    return jsonify(data=view,message="success")
 
 @app.route('/parks' , methods=['GET'])
 def getParks():
