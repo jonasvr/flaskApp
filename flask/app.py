@@ -46,7 +46,6 @@ def authorized():
     user_id = int(request.cookies.get('user_id'))
     query = "UPDATE `centerparks`.`users` SET accesstoken = '{}', park_id = {}, app_id = {} WHERE id = {};"
     qr = query.format(access_token, 1, app_id, user_id)
-    print(qr)
     dbCall(qr)
     # creating user if not exist
 
@@ -114,14 +113,11 @@ def postRegister():
         data = dbCall(selectQuery)
         user_id = data[0][0]
         for count in range(1, 4):
-            print(count, file=sys.stderr)
             query = "INSERT INTO `centerparks`.`stats` (`user_id`,`segment_id`,`distance`,`time`,`updated`) VALUES ('{}','{}','{}','{}','{}');"
             qr = query.format(user_id, count, '0', '0', '0')
             data = dbCall(qr)
-            # print(data, file=sys.stderr)
     else:
         user_id = data[0][0]
-    print(user_id, file=sys.stderr)
 
     resp = make_response(redirect(url_for("link")))
     resp.set_cookie('user_id', str(user_id))
@@ -153,7 +149,6 @@ def sync():
 
     selectQuery = "Select time, distance, updated FROM stats where user_id = {}".format(user_id)
     oldData = dbCall(selectQuery)
-    print(oldData)
 
     Run = []
     distanceRan = 0
@@ -188,7 +183,6 @@ def sync():
     
         
         selectQuery = "UPDATE stats SET time = {},distance = {},updated = '{}' WHERE user_id = {} and segment_id = {};".format(totalRunTime, distanceRan, newDate, user_id,1)
-        print("query"+selectQuery)
         data = dbCall(selectQuery)
         selectQuery = "UPDATE stats SET time = {},distance = {},updated = '{}' WHERE user_id = {} and segment_id = {};".format(totalSwimTime,distanceSwam, newDate, user_id, 2)
         data = dbCall(selectQuery)
@@ -204,7 +198,6 @@ def mystats():
 
     selectQuery = "Select time, distance, updated FROM stats where user_id = {}".format(user_id)
     data = dbCall(selectQuery)
-    print(data)
     view = {
        "run" : {
             "time" : secToTime(int(data[0][0])),
@@ -218,24 +211,44 @@ def mystats():
     # return str(view)
     return jsonify(data=view,message="success")
 
+@app.route('/park' , methods=['POST'])
+def getPark():
+    user_id = request.form['user_id']
+    selectQuery = "SELECT parks.name FROM centerparks.users join parks on users.park_id = parks.id where users.id = {}".format(user_id);
+    data = dbCall(selectQuery)
+    return jsonify(park=data[0][0], message="success")
+
+@app.route('/park/stats' , methods=['POST'])
+def getOwnParkStats():
+    user_id = request.form['user_id']
+    selectQuery = "SELECT `segments`.`name`, sum(stats.distance) as distance, sum(stats.time) as time FROM centerparks.users join parks on users.park_id = parks.id join stats on users.id = stats.user_id join segments on stats.segment_id = segments.id where users.id = {} group by stats.segment_id".format(user_id);
+    data = dbCall(selectQuery)
+    for x in data:
+        x[2]=secToTime(x[2])
+        x[1]=round(float(x[1]),2)
+    return jsonify(stats=data, message="success")
+
+@app.route('/park/stats' , methods=['GET'])
+def getAllParkStats():
+    selectQuery = "SELECT`segments`.`name`, sum(stats.distance), sum(stats.time) FROM centerparks.users join parks on users.park_id = parks.id join stats on users.id = stats.user_id join segments on stats.segment_id = segments.id group by stats.segment_id";
+    data = dbCall(selectQuery)
+    
+    return jsonify(stats=data, message="success")
+
 @app.route('/parks' , methods=['GET'])
 def getParks():
 
     selectQuery = "Select * FROM parks"
     data = dbCall(selectQuery)
-    return str(data)
+    return jsonify(parks=data, message="success")
 
 @app.route('/parks' , methods=['POST'])
 def postParks():
-    # user_id = int(request.cookies.get('user_id'))
-    user_id = 54
-    # token = request.cookies.get('token')
-    # client.access_token = token
-
     park_id = request.form['park_id']
+    user_id = request.form['user_id']
     selectQuery = "UPDATE users SET park_id = {} WHERE id = {}".format(park_id, user_id)
     data = dbCall(selectQuery)
-    return str(data)
+    return jsonify(data=data,message="success")
 
 ###########################################################################################################
 
@@ -258,7 +271,7 @@ def secToTime(secs):
     # hr word het aantal uur, min is de rest
     hr, min = divmod(secs, 60)
     day, hr = divmod(hr, 24)
-    return "{}d {:02}h {:02}min {:02}sec".format(day, hr, min, sec)
+    return "{}d {:02}h {:02}min {:02}sec".format(int(day), int(hr), int(min), int(sec))
 
 def dbCall(query):
     connection = mysql.get_db()
