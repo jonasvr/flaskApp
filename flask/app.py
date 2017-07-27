@@ -25,7 +25,7 @@ mysql.init_app(app)
 
 clientId = 19003
 client = Client()
-authorize_url = client.authorization_url(client_id=clientId, redirect_uri='http://localhost:5000/authorized')
+# authorize_url = client.authorization_url(client_id=clientId, redirect_uri='http://localhost:5000/authorized')
 
 @app.route('/')
 def index():
@@ -60,7 +60,10 @@ def link():
     if 'token' in request.cookies:
         return "already logged in"
     else:
-        return redirect("https://www.strava.com/oauth/authorize?client_id="+str(clientId)+"&response_type=code&redirect_uri=http://localhost:5000/authorized&scope=write&state=mystate&approval_prompt=force")
+        # localhost
+        # return redirect("https://www.strava.com/oauth/authorize?client_id="+str(clientId)+"&response_type=code&redirect_uri=http://localhost:5000/authorized&scope=write&state=mystate&approval_prompt=force")
+        # cloud9
+        return redirect("https://www.strava.com/oauth/authorize?client_id="+str(clientId)+"&response_type=code&redirect_uri=https://flask-app-jonasvr.c9users.io/authorized&scope=write&state=mystate&approval_prompt=force")
 
 @app.route('/login', methods=['GET'])
 def getLogin():
@@ -228,11 +231,13 @@ def getOwnParkStats():
         x[1]=round(float(x[1]),2)
     return jsonify(stats=data, message="success")
 
-@app.route('/park/stats' , methods=['GET'])
+@app.route('/parks/stats' , methods=['GET'])
 def getAllParkStats():
-    selectQuery = "SELECT`segments`.`name`, sum(stats.distance), sum(stats.time) FROM centerparks.users join parks on users.park_id = parks.id join stats on users.id = stats.user_id join segments on stats.segment_id = segments.id group by stats.segment_id";
+    selectQuery = "SELECT `segments`.`name` ,  `parks`.`name` , sum(stats.distance) as distance, sum(stats.time) FROM centerparks.users JOIN parks ON users.park_id = parks.id JOIN stats ON users.id = stats.user_id JOIN segments ON stats.segment_id = segments.id GROUP BY parks.id, stats.segment_id";
     data = dbCall(selectQuery)
-    
+    for x in data:
+        x[3]=secToTime(x[3])
+        x[2]=round(float(x[2]),2)
     return jsonify(stats=data, message="success")
 
 @app.route('/parks' , methods=['GET'])
